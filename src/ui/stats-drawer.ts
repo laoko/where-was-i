@@ -10,6 +10,7 @@ export interface StatsDrawerOptions {
   onFilterChange?: (config: TemporalFilterConfig) => void;
   onImportClick?: () => void;
   onGoToRandomArea?: () => void;
+  onRevertToDemo?: () => void;
   onDataReset?: () => void;
   database?: StrutDB;
 }
@@ -98,6 +99,8 @@ export class StatsDrawer {
         ? Math.round(metrics.totalGridAreaKm2).toLocaleString()
         : metrics.totalGridAreaKm2.toFixed(1);
 
+    const isDemo = await this.database.isDemoMode();
+
     this.drawerElement.innerHTML = `
       <!-- Header -->
       <div style="padding: 18px 20px; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
@@ -108,6 +111,7 @@ export class StatsDrawer {
             <polygon points="8,12 16,17 16,27 8,32 0,27 0,17" fill="#818cf8" opacity="0.8"/>
           </svg>
           <span style="font-weight: 700; font-size: 1.15rem; color: var(--text-primary);">reStrut Menu</span>
+          ${isDemo ? '<span style="font-size: 0.68rem; background: rgba(45, 212, 191, 0.15); color: var(--accent-cyan); padding: 2px 7px; border-radius: var(--radius-full); border: 1px solid rgba(45, 212, 191, 0.3); font-weight: 600;">Demo</span>' : ''}
         </div>
         <button id="btn-close-drawer" class="strut-btn" style="padding: 4px 10px; font-size: 1.1rem;" aria-label="Close Menu">✕</button>
       </div>
@@ -206,6 +210,10 @@ export class StatsDrawer {
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button id="btn-revert-demo" class="strut-btn" style="width: 100%; justify-content: center; font-size: 0.82rem; color: var(--accent-cyan); background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle);">
+              ✨ Revert to Demo Data
+            </button>
+
             <button id="btn-export-backup" class="strut-btn" style="width: 100%; justify-content: center; font-size: 0.82rem;">
               💾 Export JSON Backup
             </button>
@@ -260,6 +268,15 @@ export class StatsDrawer {
         this.renderContent();
       });
     });
+
+    // Revert to demo data
+    const revertDemoBtn = this.drawerElement.querySelector('#btn-revert-demo') as HTMLElement | null;
+    if (revertDemoBtn) {
+      revertDemoBtn.onclick = () => {
+        this.close();
+        this.options.onRevertToDemo?.();
+      };
+    }
 
     // Export backup
     const exportBtn = this.drawerElement.querySelector('#btn-export-backup') as HTMLElement | null;

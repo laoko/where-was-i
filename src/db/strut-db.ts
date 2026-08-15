@@ -333,6 +333,34 @@ export class StrutDB extends Dexie {
       },
     );
   }
+
+  /**
+   * Checks if the active dataset is the demo/sample state.
+   */
+  async isDemoMode(): Promise<boolean> {
+    const setting = await this.appSettings.get('isDemoMode');
+    return setting ? Boolean(setting.value) : false;
+  }
+
+  /**
+   * Flags the database as demo state or real personal data.
+   */
+  async setDemoMode(isDemo: boolean): Promise<void> {
+    await this.appSettings.put({ key: 'isDemoMode', value: isDemo });
+  }
+
+  /**
+   * If demo data is active, cleanly purges it before ingesting real user data.
+   * Returns true if demo was active and purged.
+   */
+  async clearDemoIfActive(): Promise<boolean> {
+    const isDemo = await this.isDemoMode();
+    if (isDemo) {
+      await this.purgeAllData();
+      return true;
+    }
+    return false;
+  }
 }
 
 export const db = new StrutDB();

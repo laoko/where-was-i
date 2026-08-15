@@ -11,6 +11,8 @@ import { pickRandomDiscoveredHex } from './spatial/viewport.ts';
 import { GeolocationTracker } from './spatial/geolocation-tracker.ts';
 import { LocationMarker } from './map/location-marker.ts';
 
+const OSLO_DEMO_CENTER: [number, number] = [10.7682, 59.9515];
+
 async function bootstrapApp(): Promise<void> {
   // 1. Initialize IndexedDB
   await db.initializeDefaults();
@@ -18,19 +20,27 @@ async function bootstrapApp(): Promise<void> {
   // 2. Initialize Map Engine
   const mapEngine = new MapEngine({
     container: 'map-container',
+    initialCenter: OSLO_DEMO_CENTER,
+    initialZoom: 13,
   });
 
   let currentFilter: TemporalFilterConfig = { mode: 'all-time' };
 
+  // Demo badge UI helper
+  function updateDemoBadge(isDemo: boolean): void {
+    const badge = document.getElementById('badge-demo');
+    if (badge) {
+      badge.style.display = isDemo ? 'inline-block' : 'none';
+    }
+  }
+
   // 3. Load stored hex data onto map
   async function reloadMapData(autoFit = false): Promise<void> {
     const hexes = await getFilteredHexStats(currentFilter, db);
+    const isDemo = await db.isDemoMode();
+    updateDemoBadge(isDemo);
     mapEngine.updateHexData(hexes, autoFit);
   }
-
-  mapEngine.mapInstance.on('load', async () => {
-    await reloadMapData(true);
-  });
 
   // 4. Ingestion & UI Controller
   const ingestionController = new IngestionController();
@@ -46,8 +56,76 @@ async function bootstrapApp(): Promise<void> {
     },
   });
 
+  // Demo State Loader
+  async function loadDemoState(notify = false): Promise<void> {
+    try {
+      progressModal.show('demo-timeline.json');
+      await db.purgeAllData();
+
+      const response = await fetch('/demo-timeline.json');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch demo dataset: ${response.statusText}`);
+      }
+      const rawJson = await response.json();
+
+      await ingestionController.startIngestion(
+        rawJson,
+        {
+          filename: 'Demo Timeline (Oslo, Seville, London)',
+          onProgress: (p) => progressModal.update(p),
+        },
+        true,
+      );
+
+      await db.setDemoMode(true);
+      progressModal.dismiss();
+      updateDemoBadge(true);
+
+      if (notify) {
+        toast.show({
+          type: 'info',
+          title: 'Demo State Active',
+          message: 'Loaded 1-year sample exploration across Oslo, Seville, and London.',
+        });
+      }
+
+      await reloadMapData(false);
+      mapEngine.mapInstance.flyTo({
+        center: OSLO_DEMO_CENTER,
+        zoom: 13,
+        essential: true,
+      });
+    } catch (err: unknown) {
+      progressModal.dismiss();
+      const msg = err instanceof Error ? err.message : 'Could not load demo state';
+      toast.show({
+        type: 'error',
+        title: 'Demo Load Failed',
+        message: msg,
+      });
+    }
+  }
+
+  // First-load check: if database is completely empty, populate demo dataset
+  mapEngine.mapInstance.on('load', async () => {
+    const existingHexCount = await db.hexStats.count();
+    const hasPurgedFlag = await db.appSettings.get('hasExplicitlyPurged');
+
+    if (existingHexCount === 0 && !hasPurgedFlag?.value) {
+      await loadDemoState(false);
+    } else {
+      await reloadMapData(true);
+    }
+  });
+
   async function handleImportPayload(filename: string, rawJson: unknown): Promise<void> {
     progressModal.show(filename);
+
+    // Auto-clear demo state when importing real personal data
+    const wasDemo = await db.clearDemoIfActive();
+    if (wasDemo) {
+      updateDemoBadge(false);
+    }
 
     try {
       const summary = await ingestionController.startIngestion(
@@ -64,10 +142,15 @@ async function bootstrapApp(): Promise<void> {
       progressModal.dismiss();
 
       if (summary.status === 'completed') {
+        await db.setDemoMode(false);
+        updateDemoBadge(false);
+
         toast.show({
           type: 'success',
-          title: 'Import Complete',
-          message: `Ingested ${summary.validPoints.toLocaleString()} points, unlocking ${summary.newHexCount.toLocaleString()} new hexes!`,
+          title: wasDemo ? 'Personal Data Active' : 'Import Complete',
+          message: wasDemo
+            ? `Sample data cleared. Ingested ${summary.validPoints.toLocaleString()} points from your history!`
+            : `Ingested ${summary.validPoints.toLocaleString()} points, unlocking ${summary.newHexCount.toLocaleString()} new hexes!`,
         });
         await reloadMapData(true);
       } else if (summary.status === 'cancelled') {
@@ -130,7 +213,13 @@ async function bootstrapApp(): Promise<void> {
         });
       }
     },
+    onRevertToDemo: async () => {
+      await loadDemoState(true);
+    },
     onDataReset: async () => {
+      await db.appSettings.put({ key: 'hasExplicitlyPurged', value: true });
+      await db.setDemoMode(false);
+      updateDemoBadge(false);
       await reloadMapData(true);
     },
   });
@@ -194,17 +283,32 @@ async function bootstrapApp(): Promise<void> {
   });
 
   if (btnGps) {
-    btnGps.onclick = () => {
+    btnGps.onclick = async () => {
       if (!tracker.isTracking()) {
+        // Auto-clear demo mode when user starts live tracking
+        const wasDemo = await db.clearDemoIfActive();
+        if (wasDemo) {
+          await db.setDemoMode(false);
+          updateDemoBadge(false);
+          await reloadMapData(false);
+          toast.show({
+            type: 'info',
+            title: 'Sample Data Cleared',
+            message: 'Starting live tracking and discovering your real location!',
+          });
+        }
+
         const started = tracker.start();
         if (started) {
           locationMarker.setFollowMode(true);
           updateGpsButtonState(true, true);
-          toast.show({
-            type: 'info',
-            title: 'Live Tracking Active',
-            message: 'Discovering hexagons as you move!',
-          });
+          if (!wasDemo) {
+            toast.show({
+              type: 'info',
+              title: 'Live Tracking Active',
+              message: 'Discovering hexagons as you move!',
+            });
+          }
         }
       } else if (!locationMarker.isFollowMode()) {
         // Recenter and re-enable follow mode
@@ -234,6 +338,8 @@ async function bootstrapApp(): Promise<void> {
     },
     onJobComplete: async (summary) => {
       progressModal.dismiss();
+      await db.setDemoMode(false);
+      updateDemoBadge(false);
       toast.show({
         type: 'success',
         title: 'Shared File Processed',
