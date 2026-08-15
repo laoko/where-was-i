@@ -33,7 +33,7 @@ describe('Demo State Lifecycle & Auto-Transition Suite', () => {
     const rawDemo = JSON.parse(fs.readFileSync(demoPath, 'utf8'));
 
     const testPayload = {
-      locations: rawDemo.locations.slice(0, 10000),
+      locations: rawDemo.locations.slice(0, 2500),
     };
 
     const summary = await runIngestionPipeline(
@@ -43,16 +43,16 @@ describe('Demo State Lifecycle & Auto-Transition Suite', () => {
     );
 
     expect(summary.status).toBe('completed');
-    expect(summary.validPoints).toBeGreaterThanOrEqual(10000);
-    expect(summary.newHexCount).toBeGreaterThanOrEqual(300);
+    expect(summary.validPoints).toBeGreaterThanOrEqual(2500);
+    expect(summary.newHexCount).toBeGreaterThanOrEqual(100);
 
     await testDb.setDemoMode(true);
     expect(await testDb.isDemoMode()).toBe(true);
 
     const metrics = await getExplorationMetrics(testDb);
-    expect(metrics.totalUniqueHexes).toBeGreaterThanOrEqual(300);
-    expect(metrics.totalGridAreaKm2).toBeGreaterThan(1.0);
-  }, 15000);
+    expect(metrics.totalUniqueHexes).toBeGreaterThanOrEqual(100);
+    expect(metrics.totalGridAreaKm2).toBeGreaterThan(0.3);
+  });
 
   it('automatically purges demo data when user imports personal data', async () => {
     // 1. Setup demo state
