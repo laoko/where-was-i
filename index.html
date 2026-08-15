@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Strut - Fog of War Map Exploration</title>
+    <title>reStrut - Fog of War Map Exploration</title>
     <meta name="description" content="Local-first fog of war map exploration progressive web app. Zero telemetry." />
     <meta name="theme-color" content="#080c14" />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.1.0/dist/maplibre-gl.css" />
@@ -14,23 +14,19 @@
       <!-- Top Navigation Header -->
       <header class="strut-header">
         <div class="strut-brand">
-          <svg class="strut-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="12 2 2 7 12 12 22 7 12 2" stroke="currentColor" fill="none"></polygon>
-            <polyline points="2 17 12 22 22 17"></polyline>
-            <polyline points="2 12 12 17 22 12"></polyline>
+          <svg class="strut-logo-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true" style="width: 26px; height: 26px;">
+            <polygon points="16,2 24,7 24,17 16,22 8,17 8,7" fill="#2dd4bf" opacity="0.95"></polygon>
+            <polygon points="24,12 32,17 32,27 24,32 16,27 16,17" fill="#38bdf8" opacity="0.8"></polygon>
+            <polygon points="8,12 16,17 16,27 8,32 0,27 0,17" fill="#818cf8" opacity="0.8"></polygon>
           </svg>
-          <span class="strut-title">Strut</span>
+          <span class="strut-title">reStrut</span>
           <span class="strut-badge-privacy">🔒 100% Local</span>
         </div>
 
         <div class="strut-header-actions">
-          <button id="btn-stats" class="strut-btn" aria-label="Open Statistics and Settings">
-            <span>📊</span>
-            <span>Stats</span>
-          </button>
-          <button id="btn-import" class="strut-btn strut-btn-primary" aria-label="Import Location History">
-            <span>📥</span>
-            <span>Import History</span>
+          <button id="btn-menu" class="strut-btn" aria-label="Open reStrut Menu" style="padding: 7px 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 1.1rem; line-height: 1;">☰</span>
+            <span>Menu</span>
           </button>
         </div>
       </header>

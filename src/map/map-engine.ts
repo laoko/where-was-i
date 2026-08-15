@@ -7,9 +7,7 @@ import maplibregl, {
 import type { HexStats } from '../types/domain.ts';
 import {
   FOG_SOURCE_ID,
-  FOG_LAYER_ID,
   GLOW_SOURCE_ID,
-  GLOW_LAYER_ID,
   HEX_SOURCE_ID,
   HEX_HEAT_LAYER_ID,
   createEmptyGeoJSONSourceSpec,
@@ -30,7 +28,6 @@ export interface MapEngineOptions {
   styleUrl?: string;
   initialCenter?: [lng: number, lat: number];
   initialZoom?: number;
-  highContrast?: boolean;
   onHexClick?: (h3Index: string, stats: { visitCount: number; firstVisited: number; lastVisited: number }) => void;
 }
 
@@ -40,11 +37,9 @@ export class MapEngine {
   private offlineManager: OfflineFallbackManager | null = null;
   private popup: maplibregl.Popup | null = null;
   private lastClickPoint: Point | null = null;
-  private isHighContrast = false;
   private onHexClick?: MapEngineOptions['onHexClick'];
 
   constructor(options: MapEngineOptions) {
-    this.isHighContrast = options.highContrast ?? false;
     this.onHexClick = options.onHexClick;
 
     const mapOptions: MapOptions = {
@@ -75,13 +70,13 @@ export class MapEngine {
     // 1. Fog of War Mask Source & Layer
     if (!this.map.getSource(FOG_SOURCE_ID)) {
       this.map.addSource(FOG_SOURCE_ID, createEmptyGeoJSONSourceSpec());
-      this.map.addLayer(createFogMaskLayerSpec(this.isHighContrast));
+      this.map.addLayer(createFogMaskLayerSpec());
     }
 
-    // 2. Zoom-Out Discovery Glow Beacons Layer (Density Weighted)
+    // 2. Zoom-Out Discovery Glow Beacons Layer (Density Weighted & 60% Compact)
     if (!this.map.getSource(GLOW_SOURCE_ID)) {
       this.map.addSource(GLOW_SOURCE_ID, createEmptyGeoJSONSourceSpec());
-      this.map.addLayer(createDiscoveryGlowLayerSpec(this.isHighContrast));
+      this.map.addLayer(createDiscoveryGlowLayerSpec());
     }
 
     // 3. Discovered Hexagons Interactive Hit Target Layer
@@ -199,28 +194,6 @@ export class MapEngine {
         essential: true,
       },
     );
-  }
-
-  /**
-   * Toggles high-contrast accessibility mode
-   */
-  setHighContrast(enabled: boolean): void {
-    this.isHighContrast = enabled;
-    if (!this.map.isStyleLoaded()) return;
-
-    if (this.map.getLayer(FOG_LAYER_ID)) {
-      this.map.removeLayer(FOG_LAYER_ID);
-    }
-    if (this.map.getLayer(GLOW_LAYER_ID)) {
-      this.map.removeLayer(GLOW_LAYER_ID);
-    }
-    if (this.map.getLayer(HEX_HEAT_LAYER_ID)) {
-      this.map.removeLayer(HEX_HEAT_LAYER_ID);
-    }
-
-    this.map.addLayer(createFogMaskLayerSpec(this.isHighContrast));
-    this.map.addLayer(createDiscoveryGlowLayerSpec(this.isHighContrast));
-    this.map.addLayer(createHexHeatLayerSpec());
   }
 
   /**

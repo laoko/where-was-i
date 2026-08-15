@@ -8,7 +8,7 @@ import type {
 } from '../workers/viewport.worker.ts';
 import { HEX_SOURCE_ID, FOG_SOURCE_ID, GLOW_SOURCE_ID } from './hex-layer-styles.ts';
 
-export const VIEWPORT_DEBOUNCE_MS = 200;
+export const VIEWPORT_DEBOUNCE_MS = 50;
 
 export interface ViewportControllerOptions {
   debounceMs?: number;

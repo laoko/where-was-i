@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildDiscoveryGlowGeoJSON } from '../src/spatial/viewport.ts';
+import { buildDiscoveryGlowGeoJSON, pickRandomDiscoveredHex } from '../src/spatial/viewport.ts';
 import {
   createDiscoveryGlowLayerSpec,
   GLOW_LAYER_ID,
@@ -43,16 +43,23 @@ describe('Discovery Glow Beacons (Density-Weighted & Zoom-Adaptive)', () => {
     expect(cphFeature?.geometry.coordinates[1]).toBeCloseTo(55.67, 1);
   });
 
-  it('creates valid MapLibre Heatmap specification with density and zoom curves', () => {
-    const spec = createDiscoveryGlowLayerSpec(false);
+  it('creates valid MapLibre Heatmap specification with 60% compact radius and zoom curves', () => {
+    const spec = createDiscoveryGlowLayerSpec();
 
     expect(spec.id).toBe(GLOW_LAYER_ID);
     expect(spec.source).toBe(GLOW_SOURCE_ID);
     expect(spec.type).toBe('heatmap');
     expect(spec.paint).toBeDefined();
 
-    // Check zoom fade configuration
     const paint = spec.paint as Record<string, unknown>;
+
+    // Check 60% compact radius
+    const radiusCurve = paint['heatmap-radius'] as unknown[];
+    expect(radiusCurve).toBeDefined();
+    expect(radiusCurve).toContain(6); // Zoom 1 radius is 6 (60% of 10)
+    expect(radiusCurve).toContain(22); // Zoom 9 radius is 22 (60% of 36)
+
+    // Check zoom fade configuration
     const opacityCurve = paint['heatmap-opacity'] as unknown[];
     expect(opacityCurve).toBeDefined();
     expect(Array.isArray(opacityCurve)).toBe(true);
@@ -61,5 +68,25 @@ describe('Discovery Glow Beacons (Density-Weighted & Zoom-Adaptive)', () => {
     const zoom11Idx = opacityCurve.indexOf(11);
     expect(zoom11Idx).toBeGreaterThan(0);
     expect(opacityCurve[zoom11Idx + 1]).toBe(0.0);
+  });
+
+  describe('Random Discovered Area Selection', () => {
+    it('returns null for empty hex list', () => {
+      expect(pickRandomDiscoveredHex([])).toBeNull();
+    });
+
+    it('selects a valid discovered hexagon with inverse density balancing', () => {
+      const hex1 = pointToH3Index(55.6761, 12.5683);
+      const hex2 = pointToH3Index(35.6762, 139.6503);
+
+      const stats: HexStats[] = [
+        { h3Index: hex1, visitCount: 20, firstVisited: 100, lastVisited: 200 },
+        { h3Index: hex2, visitCount: 2, firstVisited: 100, lastVisited: 200 },
+      ];
+
+      const picked = pickRandomDiscoveredHex(stats);
+      expect(picked).not.toBeNull();
+      expect([hex1, hex2]).toContain(picked);
+    });
   });
 });

@@ -130,7 +130,7 @@ describe('GeoJSON Polygon Features & MapLibre Layer Specifications', () => {
     });
 
     it('creates Fog of War mask layer specification', () => {
-      const fogLayer = createFogMaskLayerSpec(false);
+      const fogLayer = createFogMaskLayerSpec();
       expect(fogLayer.id).toBe(FOG_LAYER_ID);
       expect(fogLayer.source).toBe(FOG_SOURCE_ID);
       expect(fogLayer.type).toBe('fill');
@@ -143,7 +143,7 @@ describe('GeoJSON Polygon Features & MapLibre Layer Specifications', () => {
       expect(heatFill.id).toBe(HEX_HEAT_LAYER_ID);
       expect(heatFill.source).toBe(HEX_SOURCE_ID);
 
-      const standardBorder = createHexBorderLayerSpec(false);
+      const standardBorder = createHexBorderLayerSpec();
       expect(standardBorder.id).toBe(HEX_BORDER_LAYER_ID);
       expect(standardBorder.source).toBe(HEX_SOURCE_ID);
       expect(standardBorder.type).toBe('line');

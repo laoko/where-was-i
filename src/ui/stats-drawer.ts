@@ -8,7 +8,8 @@ import { db as defaultDb, StrutDB } from '../db/strut-db.ts';
 
 export interface StatsDrawerOptions {
   onFilterChange?: (config: TemporalFilterConfig) => void;
-  onHighContrastToggle?: (enabled: boolean) => void;
+  onImportClick?: () => void;
+  onGoToRandomArea?: () => void;
   onDataReset?: () => void;
   database?: StrutDB;
 }
@@ -20,7 +21,6 @@ export class StatsDrawer {
   private database: StrutDB;
   private options: StatsDrawerOptions;
   private activeFilter: TemporalFilterConfig = { mode: 'all-time' };
-  private isHighContrast = false;
 
   constructor(options: StatsDrawerOptions = {}) {
     this.options = options;
@@ -36,7 +36,7 @@ export class StatsDrawer {
     this.overlayElement.className = 'strut-drawer-backdrop';
     this.overlayElement.style.cssText = `
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);
+      background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(4px);
       z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
     `;
     this.overlayElement.onclick = () => this.close();
@@ -47,9 +47,9 @@ export class StatsDrawer {
     this.drawerElement.className = 'strut-stats-drawer';
     this.drawerElement.setAttribute('role', 'dialog');
     this.drawerElement.setAttribute('aria-modal', 'true');
-    this.drawerElement.setAttribute('aria-label', 'Exploration Statistics and Settings');
+    this.drawerElement.setAttribute('aria-label', 'reStrut Menu');
     this.drawerElement.style.cssText = `
-      position: fixed; top: 0; right: 0; width: 100%; max-width: 380px; height: 100vh;
+      position: fixed; top: 0; right: 0; width: 100%; max-width: 390px; height: 100vh;
       background: var(--bg-surface); border-left: 1px solid var(--border-subtle);
       box-shadow: var(--shadow-modal); z-index: 95; transform: translateX(100%);
       transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -91,85 +91,135 @@ export class StatsDrawer {
 
     const metrics: ExplorationSummaryMetrics = await getExplorationMetrics(this.database);
     const years = await getYearBreakdowns(this.database);
+    const recentImports = await this.database.imports.reverse().limit(3).toArray();
 
-    const formattedArea = metrics.totalGridAreaKm2 >= 100
-      ? Math.round(metrics.totalGridAreaKm2).toLocaleString()
-      : metrics.totalGridAreaKm2.toFixed(1);
+    const formattedArea =
+      metrics.totalGridAreaKm2 >= 100
+        ? Math.round(metrics.totalGridAreaKm2).toLocaleString()
+        : metrics.totalGridAreaKm2.toFixed(1);
 
     this.drawerElement.innerHTML = `
-      <div style="padding: 20px; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
-        <h2 style="font-size: 1.1rem; font-weight: 700;">Exploration & Stats</h2>
-        <button id="btn-close-drawer" class="strut-btn" style="padding: 4px 10px; font-size: 1.1rem;" aria-label="Close Drawer">✕</button>
+      <!-- Header -->
+      <div style="padding: 18px 20px; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+            <polygon points="16,2 24,7 24,17 16,22 8,17 8,7" fill="#2dd4bf" opacity="0.95"/>
+            <polygon points="24,12 32,17 32,27 24,32 16,27 16,17" fill="#38bdf8" opacity="0.8"/>
+            <polygon points="8,12 16,17 16,27 8,32 0,27 0,17" fill="#818cf8" opacity="0.8"/>
+          </svg>
+          <span style="font-weight: 700; font-size: 1.15rem; color: var(--text-primary);">reStrut Menu</span>
+        </div>
+        <button id="btn-close-drawer" class="strut-btn" style="padding: 4px 10px; font-size: 1.1rem;" aria-label="Close Menu">✕</button>
       </div>
 
-      <div style="padding: 20px; display: flex; flex-direction: column; gap: 20px; flex: 1;">
-        <!-- Metrics Cards -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <div style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-            <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Grid Area</div>
-            <div style="font-size: 1.35rem; font-weight: 700; color: var(--accent-cyan); margin-top: 4px;">
-              ${formattedArea} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-secondary);">km²</span>
-            </div>
-          </div>
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 24px; flex: 1;">
 
-          <div style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-            <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Hexagons</div>
-            <div style="font-size: 1.35rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">
-              ${metrics.totalUniqueHexes.toLocaleString()}
-            </div>
-          </div>
-        </div>
-
-        <div style="background: var(--bg-surface-elevated); padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 0.82rem; color: var(--text-secondary);">Total Visit Days:</span>
-          <strong style="font-size: 0.95rem; color: var(--text-primary);">${metrics.totalVisitDays.toLocaleString()}</strong>
-        </div>
-
-        <!-- Temporal Filter Section -->
+        <!-- 1. Import Location History (First) -->
         <div>
-          <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; text-transform: uppercase;">
-            Map Filter View
+          <div style="font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em;">
+            1. Import Location History
+          </div>
+          <button id="btn-menu-import" class="strut-btn strut-btn-primary" style="width: 100%; justify-content: center; padding: 10px 14px; font-weight: 600;">
+            📥 Import JSON File (Takeout / Timeline)
+          </button>
+
+          ${
+            recentImports.length > 0
+              ? `
+              <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">
+                ${recentImports
+                  .map(
+                    (imp) => `
+                  <div style="font-size: 0.76rem; background: var(--bg-surface-elevated); padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${imp.filename}</span>
+                    <span style="color: var(--accent-cyan); font-weight: 600;">+${imp.newHexCount} hexes</span>
+                  </div>
+                `,
+                  )
+                  .join('')}
+              </div>
+            `
+              : ''
+          }
+        </div>
+
+        <!-- 2. Exploration Stats (Second) -->
+        <div>
+          <div style="font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em;">
+            2. Exploration Stats
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div style="background: var(--bg-surface-elevated); padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+              <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Grid Area</div>
+              <div style="font-size: 1.3rem; font-weight: 700; color: var(--accent-cyan); margin-top: 2px;">
+                ${formattedArea} <span style="font-size: 0.76rem; font-weight: 500; color: var(--text-secondary);">km²</span>
+              </div>
+            </div>
+
+            <div style="background: var(--bg-surface-elevated); padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+              <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Discovered Hexes</div>
+              <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">
+                ${metrics.totalUniqueHexes.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Go to Random Discovered Area (Third) -->
+        <div>
+          <div style="font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em;">
+            3. Explore Map
+          </div>
+          <button id="btn-random-area" class="strut-btn" style="width: 100%; justify-content: center; padding: 10px 14px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: var(--text-primary); font-weight: 600;" ${metrics.totalUniqueHexes === 0 ? 'disabled' : ''}>
+            🎲 Go to Random Discovered Area
+          </button>
+        </div>
+
+        <!-- 4. Time Filters (Fourth) -->
+        <div>
+          <div style="font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em;">
+            4. Time Filters
           </div>
           <div id="filter-pills" style="display: flex; flex-wrap: wrap; gap: 8px;">
-            <button class="strut-btn filter-pill ${this.activeFilter.mode === 'all-time' ? 'strut-btn-primary' : ''}" data-mode="all-time" style="font-size: 0.78rem; padding: 5px 10px;">
+            <button class="strut-btn filter-pill ${this.activeFilter.mode === 'all-time' ? 'strut-btn-primary' : ''}" data-mode="all-time" style="font-size: 0.78rem; padding: 5px 11px;">
               All-Time
             </button>
-            <button class="strut-btn filter-pill ${this.activeFilter.mode === 'latest-sync' ? 'strut-btn-primary' : ''}" data-mode="latest-sync" style="font-size: 0.78rem; padding: 5px 10px;">
+            <button class="strut-btn filter-pill ${this.activeFilter.mode === 'latest-sync' ? 'strut-btn-primary' : ''}" data-mode="latest-sync" style="font-size: 0.78rem; padding: 5px 11px;">
               Latest Sync
             </button>
-            ${years.map((y) => `
-              <button class="strut-btn filter-pill ${this.activeFilter.mode === 'year' && this.activeFilter.year === y.year ? 'strut-btn-primary' : ''}" data-mode="year" data-year="${y.year}" style="font-size: 0.78rem; padding: 5px 10px;">
+            ${years
+              .map(
+                (y) => `
+              <button class="strut-btn filter-pill ${this.activeFilter.mode === 'year' && this.activeFilter.year === y.year ? 'strut-btn-primary' : ''}" data-mode="year" data-year="${y.year}" style="font-size: 0.78rem; padding: 5px 11px;">
                 ${y.year} (${y.hexCount})
               </button>
-            `).join('')}
+            `,
+              )
+              .join('')}
           </div>
         </div>
 
-        <!-- Data Controls Section -->
-        <div style="border-top: 1px solid var(--border-subtle); padding-top: 18px;">
-          <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase;">
-            Data Controls & Settings
+        <!-- 5. Data Controls (Fifth / End) -->
+        <div style="border-top: 1px solid var(--border-subtle); padding-top: 18px; margin-top: auto;">
+          <div style="font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">
+            5. Data Controls
           </div>
 
-          <div style="display: flex; flex-direction: column; gap: 10px;">
-            <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; padding: 8px 0; cursor: pointer;">
-              <span>High-Contrast Map Colors</span>
-              <input type="checkbox" id="check-high-contrast" ${this.isHighContrast ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;" />
-            </label>
-
-            <button id="btn-export-backup" class="strut-btn" style="width: 100%; justify-content: center;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button id="btn-export-backup" class="strut-btn" style="width: 100%; justify-content: center; font-size: 0.82rem;">
               💾 Export JSON Backup
             </button>
 
-            <button id="btn-restore-backup" class="strut-btn" style="width: 100%; justify-content: center;">
+            <button id="btn-restore-backup" class="strut-btn" style="width: 100%; justify-content: center; font-size: 0.82rem;">
               📥 Restore JSON Backup
             </button>
 
-            <button id="btn-purge-data" class="strut-btn strut-btn-danger" style="width: 100%; justify-content: center; margin-top: 8px;">
+            <button id="btn-purge-data" class="strut-btn strut-btn-danger" style="width: 100%; justify-content: center; margin-top: 4px; font-size: 0.82rem;">
               🗑️ Purge All Data
             </button>
           </div>
         </div>
+
       </div>
     `;
 
@@ -177,6 +227,24 @@ export class StatsDrawer {
     const closeBtn = this.drawerElement.querySelector('#btn-close-drawer') as HTMLElement | null;
     if (closeBtn) {
       closeBtn.onclick = () => this.close();
+    }
+
+    // Import button inside menu
+    const importBtn = this.drawerElement.querySelector('#btn-menu-import') as HTMLElement | null;
+    if (importBtn) {
+      importBtn.onclick = () => {
+        this.close();
+        this.options.onImportClick?.();
+      };
+    }
+
+    // Go to Random Area
+    const randomBtn = this.drawerElement.querySelector('#btn-random-area') as HTMLElement | null;
+    if (randomBtn) {
+      randomBtn.onclick = () => {
+        this.close();
+        this.options.onGoToRandomArea?.();
+      };
     }
 
     // Filter pills
@@ -192,15 +260,6 @@ export class StatsDrawer {
         this.renderContent();
       });
     });
-
-    // High contrast toggle
-    const highContrastCheck = this.drawerElement.querySelector('#check-high-contrast') as HTMLInputElement | null;
-    if (highContrastCheck) {
-      highContrastCheck.onchange = () => {
-        this.isHighContrast = highContrastCheck.checked;
-        this.options.onHighContrastToggle?.(this.isHighContrast);
-      };
-    }
 
     // Export backup
     const exportBtn = this.drawerElement.querySelector('#btn-export-backup') as HTMLElement | null;

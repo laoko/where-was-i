@@ -91,8 +91,12 @@ export function buildFogMaskGeoJSON(
   ];
 
   const visibleCells: string[] = [];
+  // For standard exploration datasets (<= 40,000 hexes), retain all discovered cells globally
+  // so panning across any region is 100% instant with zero fog flicker.
+  const shouldCull = hexStatsList.length > 40_000 && bbox !== undefined;
+
   for (const stat of hexStatsList) {
-    if (bbox && !isH3CellInBBox(stat.h3Index, bbox)) {
+    if (shouldCull && bbox && !isH3CellInBBox(stat.h3Index, bbox, 1.5)) {
       continue;
     }
     visibleCells.push(stat.h3Index);
@@ -152,7 +156,7 @@ export function buildViewportGeoJSON(
   const features: Feature<Polygon, HexFeatureProperties>[] = [];
 
   for (const stat of hexStatsList) {
-    if (bbox && !isH3CellInBBox(stat.h3Index, bbox)) {
+    if (bbox && !isH3CellInBBox(stat.h3Index, bbox, 0.05)) {
       continue;
     }
 
@@ -293,4 +297,48 @@ export function buildDiscoveryGlowGeoJSON(
     type: 'FeatureCollection',
     features,
   };
+}
+
+/**
+ * Selects an almost random discovered hexagon, slightly biased towards less dense areas.
+ * Groups hexagons into Res 6 parent clusters and inversely weights clusters by 1 / sqrt(clusterSize).
+ */
+export function pickRandomDiscoveredHex(hexStatsList: readonly HexStats[]): string | null {
+  if (hexStatsList.length === 0) return null;
+  if (hexStatsList.length === 1) return hexStatsList[0]?.h3Index ?? null;
+
+  // Group by Resolution 6 parent (~15km metropolitan bucket)
+  const clusterMap = new Map<string, HexStats[]>();
+  for (const stat of hexStatsList) {
+    const parent = cellToParent(stat.h3Index, 6);
+    let list = clusterMap.get(parent);
+    if (!list) {
+      list = [];
+      clusterMap.set(parent, list);
+    }
+    list.push(stat);
+  }
+
+  const clusters = Array.from(clusterMap.values());
+  if (clusters.length === 0) return null;
+
+  // Weight each cluster inversely proportional to sqrt of its size (less dense gets slight boost)
+  const weights = clusters.map((c) => 1 / Math.sqrt(Math.max(1, c.length)));
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+  let rand = Math.random() * totalWeight;
+  let chosenCluster = clusters[0]!;
+
+  for (let i = 0; i < clusters.length; i++) {
+    const w = weights[i] ?? 0;
+    if (rand < w) {
+      chosenCluster = clusters[i]!;
+      break;
+    }
+    rand -= w;
+  }
+
+  // Pick a random hex inside chosen cluster
+  const randomIndex = Math.floor(Math.random() * chosenCluster.length);
+  return chosenCluster[randomIndex]?.h3Index ?? null;
 }

@@ -16,14 +16,12 @@ const DISPLAY_STAGES: { id: IngestionStage; label: string }[] = [
 export class ProgressModal {
   private overlay: HTMLElement | null = null;
   private fillBar: HTMLElement | null = null;
-  private percentLabel: HTMLElement | null = null;
   private messageLabel: HTMLElement | null = null;
   private subMessageLabel: HTMLElement | null = null;
   private countLabel: HTMLElement | null = null;
   private hexCountLabel: HTMLElement | null = null;
   private gridAreaLabel: HTMLElement | null = null;
   private speedLabel: HTMLElement | null = null;
-  private etaLabel: HTMLElement | null = null;
   private stageElements: Map<IngestionStage, HTMLElement> = new Map();
   private onCancel?: (() => void) | undefined;
 
@@ -45,12 +43,11 @@ export class ProgressModal {
     card.className = 'strut-progress-card';
     card.style.maxWidth = '520px';
 
-    // Header
+    // Header (clean title without inaccurate percent)
     const header = document.createElement('div');
     header.className = 'strut-progress-header';
     header.innerHTML = `
       <div id="progress-title" class="strut-progress-title">Importing ${filename}</div>
-      <span id="progress-percent" style="font-weight: 700; font-size: 1.05rem; color: var(--accent-cyan);">0%</span>
     `;
 
     // Stepper Pills
@@ -84,11 +81,11 @@ export class ProgressModal {
       <span id="progress-submsg" style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;">Preparing data structures</span>
     `;
 
-    // Live Metrics Grid
+    // Live Metrics Grid (3 clean columns: Hexagons, Grid Area, Throughput)
     const liveMetricsGrid = document.createElement('div');
     liveMetricsGrid.style.cssText = `
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
-      background: var(--bg-surface-elevated); padding: 10px 12px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      background: var(--bg-surface-elevated); padding: 10px 14px;
       border-radius: var(--radius-md); border: 1px solid var(--border-subtle);
       margin-bottom: 18px;
     `;
@@ -102,12 +99,8 @@ export class ProgressModal {
         <div id="stat-area" style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">0 km²</div>
       </div>
       <div>
-        <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">Throughput</div>
+        <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">Speed</div>
         <div id="stat-speed" style="font-size: 0.95rem; font-weight: 700; color: var(--text-secondary); margin-top: 2px;">--</div>
-      </div>
-      <div>
-        <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">Remaining</div>
-        <div id="stat-eta" style="font-size: 0.95rem; font-weight: 700; color: var(--text-secondary); margin-top: 2px;">--</div>
       </div>
     `;
 
@@ -135,14 +128,12 @@ export class ProgressModal {
 
     document.body.appendChild(this.overlay);
 
-    this.percentLabel = header.querySelector('#progress-percent');
     this.messageLabel = messageContainer.querySelector('#progress-msg');
     this.subMessageLabel = messageContainer.querySelector('#progress-submsg');
     this.countLabel = messageContainer.querySelector('#progress-count');
     this.hexCountLabel = liveMetricsGrid.querySelector('#stat-hexes');
     this.gridAreaLabel = liveMetricsGrid.querySelector('#stat-area');
     this.speedLabel = liveMetricsGrid.querySelector('#stat-speed');
-    this.etaLabel = liveMetricsGrid.querySelector('#stat-eta');
   }
 
   update(progress: IngestionProgress): void {
@@ -150,9 +141,6 @@ export class ProgressModal {
 
     if (this.fillBar) {
       this.fillBar.style.width = `${Math.min(100, Math.max(0, progress.progressPercent))}%`;
-    }
-    if (this.percentLabel) {
-      this.percentLabel.textContent = `${Math.round(progress.progressPercent)}%`;
     }
     if (this.messageLabel && progress.message) {
       this.messageLabel.textContent = progress.message;
@@ -179,13 +167,6 @@ export class ProgressModal {
         progress.pointsPerSec >= 1000
           ? `${(progress.pointsPerSec / 1000).toFixed(1)}k/s`
           : `${progress.pointsPerSec}/s`;
-    }
-    if (this.etaLabel) {
-      if (progress.etaSeconds !== undefined && progress.etaSeconds > 0) {
-        this.etaLabel.textContent = `~${progress.etaSeconds}s`;
-      } else if (progress.progressPercent >= 100) {
-        this.etaLabel.textContent = 'Done';
-      }
     }
 
     // Stage Stepper mapping

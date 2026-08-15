@@ -48,7 +48,7 @@ export class StrutDB extends Dexie {
   async initializeDefaults(): Promise<void> {
     await this.transaction(
       'rw',
-      [this.syncState, this.appSettings],
+      [this.syncState],
       async () => {
         const sync = await this.syncState.get(PRIMARY_SYNC_ID);
         if (!sync) {
@@ -59,14 +59,6 @@ export class StrutDB extends Dexie {
             parserVersion: 1,
             totalGridAreaKm2: 0,
             totalUniqueHexes: 0,
-          });
-        }
-
-        const highContrast = await this.appSettings.get('highContrast');
-        if (!highContrast) {
-          await this.appSettings.put({
-            key: 'highContrast',
-            value: false,
           });
         }
       },

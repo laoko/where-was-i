@@ -7,6 +7,7 @@ import { StatsDrawer } from './ui/stats-drawer.ts';
 import { toast } from './ui/toast.ts';
 import { ShareTargetManager } from './pwa/share-target-manager.ts';
 import { getFilteredHexStats, type TemporalFilterConfig } from './metrics/temporal-filter.ts';
+import { pickRandomDiscoveredHex } from './spatial/viewport.ts';
 
 async function bootstrapApp(): Promise<void> {
   // 1. Initialize IndexedDB
@@ -64,7 +65,7 @@ async function bootstrapApp(): Promise<void> {
         toast.show({
           type: 'success',
           title: 'Import Complete',
-          message: `Ingested ${summary.validPoints} points, unlocking ${summary.newHexCount} new hexes!`,
+          message: `Ingested ${summary.validPoints.toLocaleString()} points, unlocking ${summary.newHexCount.toLocaleString()} new hexes!`,
         });
         await reloadMapData(true);
       } else if (summary.status === 'cancelled') {
@@ -99,32 +100,43 @@ async function bootstrapApp(): Promise<void> {
     },
   });
 
-  const btnImport = document.getElementById('btn-import');
-  if (btnImport) {
-    btnImport.onclick = () => {
-      uploadZone.openFileDialog();
-    };
-  }
-
-  // 6. Stats & Settings Drawer
-  const statsDrawer = new StatsDrawer({
+  // 6. Unified reStrut Hamburger Menu
+  const menuDrawer = new StatsDrawer({
     database: db,
     onFilterChange: async (filterConfig) => {
       currentFilter = filterConfig;
       await reloadMapData(false);
     },
-    onHighContrastToggle: (enabled) => {
-      mapEngine.setHighContrast(enabled);
+    onImportClick: () => {
+      uploadZone.openFileDialog();
+    },
+    onGoToRandomArea: async () => {
+      const hexes = await getFilteredHexStats(currentFilter, db);
+      const targetHex = pickRandomDiscoveredHex(hexes);
+      if (targetHex) {
+        mapEngine.flyToCell(targetHex, 15);
+        toast.show({
+          type: 'info',
+          title: 'Exploration Warp',
+          message: 'Panning to random discovered area...',
+        });
+      } else {
+        toast.show({
+          type: 'info',
+          title: 'No Areas Discovered',
+          message: 'Import your location history to explore random areas.',
+        });
+      }
     },
     onDataReset: async () => {
       await reloadMapData(true);
     },
   });
 
-  const btnStats = document.getElementById('btn-stats');
-  if (btnStats) {
-    btnStats.onclick = () => {
-      statsDrawer.open();
+  const btnMenu = document.getElementById('btn-menu');
+  if (btnMenu) {
+    btnMenu.onclick = () => {
+      menuDrawer.open();
     };
   }
 
