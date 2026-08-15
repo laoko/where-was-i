@@ -1,0 +1,424 @@
+/* ==========================================================================
+   Strut PWA Core Stylesheet
+   Design Philosophy: Clean, functional, tactile dark mode with clear visual hierarchy
+   ========================================================================== */
+
+:root {
+  --bg-base: #080c14;
+  --bg-surface: #0f172a;
+  --bg-surface-elevated: #1e293b;
+  --bg-surface-hover: #334155;
+  --border-subtle: #1e293b;
+  --border-focus: #38bdf8;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --accent-cyan: #00e5ff;
+  --accent-green: #10b981;
+  --accent-gold: #f59e0b;
+  --accent-danger: #ef4444;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.45);
+  --shadow-modal: 0 10px 40px rgba(0, 0, 0, 0.65);
+
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Map Container */
+#map-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #0b0f19;
+  z-index: 1;
+}
+
+/* Top App Header & Controls */
+.strut-header {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.strut-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+  pointer-events: auto;
+}
+
+.strut-logo-icon {
+  width: 22px;
+  height: 22px;
+  fill: var(--accent-cyan);
+}
+
+.strut-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.strut-badge-privacy {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  background: rgba(0, 229, 255, 0.1);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.strut-header-actions {
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+/* Buttons */
+.strut-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--text-primary);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  box-shadow: var(--shadow-card);
+}
+
+.strut-btn:hover {
+  background: var(--bg-surface-elevated);
+  border-color: var(--border-focus);
+}
+
+.strut-btn:active {
+  transform: scale(0.98);
+}
+
+.strut-btn-primary {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.strut-btn-primary:hover {
+  background: #0369a1;
+}
+
+.strut-btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.strut-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+}
+
+/* Drag & Drop Full-screen Overlay */
+.strut-drop-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(8, 12, 20, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.strut-drop-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.strut-drop-box {
+  width: 90%;
+  max-width: 460px;
+  padding: 40px 24px;
+  border: 2px dashed var(--accent-cyan);
+  border-radius: var(--radius-lg);
+  background: rgba(15, 23, 42, 0.95);
+  text-align: center;
+  box-shadow: var(--shadow-modal);
+}
+
+.strut-drop-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.strut-drop-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.strut-drop-desc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.strut-drop-tip {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 14px;
+}
+
+/* Ingestion Progress Modal */
+.strut-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(8, 12, 20, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.strut-progress-card {
+  width: 90%;
+  max-width: 480px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow-modal);
+}
+
+.strut-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.strut-progress-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+/* Stage Stepper */
+.strut-stages-stepper {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  position: relative;
+}
+
+.strut-stage-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-elevated);
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.strut-stage-pill.active {
+  background: rgba(0, 229, 255, 0.15);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+}
+
+.strut-stage-pill.complete {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-green);
+}
+
+/* Progress Bar */
+.strut-progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-surface-elevated);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.strut-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00e5ff, #10b981);
+  border-radius: var(--radius-full);
+  transition: width 0.25s ease-out;
+}
+
+.strut-progress-metrics {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+/* Toast Container */
+#strut-toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.strut-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 280px;
+  max-width: 420px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  box-shadow: var(--shadow-modal);
+  pointer-events: auto;
+  animation: toast-in 0.2s ease-out;
+}
+
+.strut-toast-success {
+  border-left: 4px solid var(--accent-green);
+}
+
+.strut-toast-error {
+  border-left: 4px solid var(--accent-danger);
+}
+
+.strut-toast-info {
+  border-left: 4px solid var(--accent-cyan);
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Offline Banner */
+.strut-offline-banner {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 6px 16px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow-card);
+  z-index: 20;
+}
+
+/* Map Popup */
+.strut-hex-popup .maplibregl-popup-content {
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: 10px 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.strut-popup-content strong {
+  display: block;
+  font-size: 0.88rem;
+  margin-bottom: 4px;
+  color: var(--accent-cyan);
+}
+
+.strut-popup-content div {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.strut-popup-content span {
+  color: var(--text-primary);
+  font-weight: 500;
+}

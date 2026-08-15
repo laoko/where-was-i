@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Strut - Fog of War Map Exploration</title>
+    <meta name="description" content="Local-first fog of war map exploration progressive web app. Zero telemetry." />
+    <meta name="theme-color" content="#080c14" />
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.1.0/dist/maplibre-gl.css" />
+    <link rel="stylesheet" href="/src/ui/styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Top Navigation Header -->
+      <header class="strut-header">
+        <div class="strut-brand">
+          <svg class="strut-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2" stroke="currentColor" fill="none"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+          <span class="strut-title">Strut</span>
+          <span class="strut-badge-privacy">🔒 100% Local</span>
+        </div>
+
+        <div class="strut-header-actions">
+          <button id="btn-stats" class="strut-btn" aria-label="Open Statistics and Settings">
+            <span>📊</span>
+            <span>Stats</span>
+          </button>
+          <button id="btn-import" class="strut-btn strut-btn-primary" aria-label="Import Location History">
+            <span>📥</span>
+            <span>Import History</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Map Container -->
+      <div id="map-container" aria-label="World Exploration Map"></div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,253 @@
+================================================================================
+PROJECT REQUIREMENTS SPECIFICATION (PRS)
+Project: Strut PWA (Local-First Map Exploration Web App)
+Document Version: 2.0.0
+Date: August 2026
+Target Environment: Client-side Progressive Web App (PWA)
+================================================================================
+
+1. PROJECT OVERVIEW & CORE VISION
+--------------------------------------------------------------------------------
+A client-side, local-first Progressive Web App (PWA) inspired by the 2013 iOS 
+app "Strut". The application renders an interactive "fog of war" world map 
+revealing hexagonal tiles as the user imports location history.
+
+Core Principles:
+- 100% Application-Server-Free: All parsing, spatial indexing, aggregation, 
+  and rendering occur locally on the user's device.
+- Strict Privacy: Zero telemetry, zero analytics, zero raw location data leaving 
+  the client.
+- Mathematical Idempotency: Re-importing identical files or overlapping time 
+  windows must produce the exact same database state without inflating visit counts.
+- Automated Test Verification: Designed with a strict test harness so AI agents 
+  can develop, refactor, and self-verify code autonomously.
+
+
+2. PRIVACY & SECURITY BOUNDARIES
+--------------------------------------------------------------------------------
+2.1 Data Confinement:
+    - User location data must never leave the local browser environment under 
+      any circumstances, unless explicitly exported by user action.
+    - No location coordinates may appear in URLs, route queries, console logs, 
+      telemetry, or error reports.
+    - Zero third-party tracker or analytics scripts allowed.
+
+2.2 Map Tile Provider & Privacy Transparency:
+    - Vector map basemap tiles are fetched from an external tile endpoint 
+      (e.g., Carto Dark / Protomaps / MapLibre demo tiles).
+    - The application documentation and UI privacy disclosure must explicitly 
+      state that while raw location history stays local, the browser's HTTP 
+      requests for basemap vector tiles inherently reveal the approximate 
+      bounding box of the viewed map area to the third-party tile CDN.
+
+2.3 Content Security Policy (CSP) & Sanitization:
+    - Enforce a strict CSP: restrict `connect-src` strictly to approved tile 
+      CDNs and local blob/workers; disallow external script execution (`script-src 'self'`).
+    - Validate and sanitize all imported JSON payloads at runtime before parsing.
+
+2.4 User Data Control:
+    - Provide a one-click "Purge All Data" mechanism that drops all IndexedDB 
+      stores, unregisters service worker caches, and resets application state.
+    - Provide an encrypted or plain JSON export/backup feature for stored history
+      (canonical schema exporting `visits`, `imports`, and `appSettings` for instant
+      <500ms restoration without re-parsing raw Takeout JSONs).
+
+
+3. CANONICAL DATA ARCHITECTURE & STORAGE MODEL
+--------------------------------------------------------------------------------
+3.1 Layered Data Processing Pipeline:
+    Raw File -> Normalized Location Events -> Daily Visit Detection -> 
+    H3 Spatial Aggregation -> Derived Stats -> Map/UI Rendering
+
+3.2 Storage Strategy (Retention vs. Idempotency):
+    - To preserve storage while guaranteeing 100% idempotency across overlapping 
+      imports, raw GPS point streams (lat/long/altitude/speed) are discarded 
+      after parsing.
+    - The database retains discrete Daily Visits (composite key: `[h3Index, dateString]`).
+      At ~30 bytes per entry, 10 years of heavy exploration requires only ~5–10 MB.
+
+3.3 IndexedDB Schema (Dexie.js — `StrutDB`):
+
+    Store: `imports` (Tracks historical ingestion runs)
+    - Key: `id: string` (UUID)
+    - Fields: `filename: string`, `importedAt: number`, `sourceType: 'takeout' | 'timeline'`,
+              `pointsCount: number`, `newVisitsCount: number`, `newHexCount: number`,
+              `startDate: string`, `endDate: string`, `status: 'completed' | 'failed'`
+
+    Store: `visits` (Canonical deduplicated daily visit record)
+    - Composite Key: `[h3Index+date]` (String: `${h3Index}_${YYYY-MM-DD}`)
+    - Fields: `h3Index: string`, `date: string` (YYYY-MM-DD), `year: number`, 
+              `firstSeenTimestamp: number`, `lastSeenTimestamp: number`
+    - Indices: `h3Index`, `year`, `date`
+
+    Store: `hexStats` (Lifetime aggregates per H3 cell)
+    - Key: `h3Index: string`
+    - Fields: `visitCount: number` (Sum of distinct calendar days visited),
+              `firstVisited: number` (Timestamp ms), `lastVisited: number` (Timestamp ms)
+    - Indices: `visitCount`, `lastVisited`
+
+    Store: `hexYearStats` (Temporal year-specific aggregates)
+    - Composite Key: `[h3Index+year]` (String: `${h3Index}_${year}`)
+    - Fields: `h3Index: string`, `year: number`, `visitCount: number`
+    - Indices: `year`, `h3Index`
+
+    Store: `syncState` (Typed ingestion cursors)
+    - Key: `id: string` (e.g., 'primary_sync')
+    - Fields: `lastSuccessfulImportTimestamp: number`, `overlapWindowDays: number` (Default: 7),
+              `parserVersion: number`, `totalGridAreaKm2: number`, `totalUniqueHexes: number`
+
+    Store: `appSettings` (Typed user preferences)
+    - Key: `key: string`
+    - Fields: `value: string | number | boolean` (Strictly typed, NO `value: any`)
+
+
+4. INGESTION, PARSER ADAPTERS & WEB SHARE TARGET
+--------------------------------------------------------------------------------
+4.1 Multi-Format Adapters & Runtime Detection:
+    - Determine schema format via dynamic structural inspection, never by filename:
+      a) Legacy Google Takeout: inspects `locations` array with `latitudeE7`, `longitudeE7`.
+      b) Modern On-Device Timeline: inspects `semanticSegments` with `timelinePath` points 
+         or `activitySegment` / `placeVisit` coordinates.
+    - Normalize all incoming valid points into an internal data structure:
+      `NormalizedLocationPoint { lat: number; lng: number; timestampMs: number; accuracy?: number }`
+    - Tolerant error handling: discard malformed, missing, or out-of-range coordinates 
+      without aborting the import job. Log dropped record counts to the import summary.
+    - Timestamp & Timezone semantics: Parse ISO strings and Unix epoch timestamps cleanly; 
+      calculate calendar days (`YYYY-MM-DD`) using local timezone semantics explicitly.
+
+4.2 Worker Processing Pipeline & Cancellation:
+    - Execution flow: Main Thread -> Dedicated Web Worker -> Stream Read -> 
+      Schema Detection -> Normalize -> Daily Filter -> Batch Aggregate -> Dexie Bulk Upsert.
+    - Memory safety: Process and transfer data in chunks (batches of 10,000 points) to 
+      prevent high memory allocations and main-thread UI jank.
+    - Progress reporting stages:
+      `Reading` -> `Parsing` -> `Filtering` -> `Aggregating` -> `Persisting` -> `Complete`.
+    - Cancellation: User must be able to cancel in-flight imports. Cancelled imports 
+      must rollback pending batch transactions and never advance `lastSuccessfulImportTimestamp`.
+
+4.3 Web Share Target & Fallbacks (Progressive Enhancement):
+    - Web Share Target is treated as progressive enhancement (supported on Android/Chromium, 
+      unsupported on iOS Safari). Standardize PWA configuration & Service Worker via `vite-plugin-pwa`.
+    - Service Worker receives shared `.json` POST payload, stores it durably in a 
+      `pending-imports` IndexedDB/Cache queue, and triggers app launch.
+    - When the UI opens, it detects pending items, processes them through the Web Worker, 
+      and deletes the pending payload only upon confirmed success.
+    - Fallbacks: In-app file picker and drag-and-drop zone are prominent and fully supported 
+      across all desktop and mobile browsers (primary flow for iOS). For large files (>50MB) 
+      on mobile devices, the UI provides a subtle prompt recommending the in-app file picker.
+
+
+5. SPATIAL INDEXING & HEATMAP RENDERING
+--------------------------------------------------------------------------------
+5.1 H3 Spatial Indexing Rules:
+    - Convert coordinates to Uber H3 Index at **Resolution 11**.
+    - Accurate H3 Terminology: Resolution 11 cells have an average area of ~0.0021 km² (~2,150 m²)
+      (edge length ~25m, cell span ~35–50m at building/lot level).
+    - "Explored Hex": An H3 cell with at least 1 qualifying calendar-day visit.
+    - "Explored Area Metric": Displayed as "Grid Area Explored", defined as the sum 
+      of the calculated spherical areas of all unlocked H3 cells.
+
+5.2 Deterministic Logarithmic Heatmap:
+    - Visit Count = Number of distinct calendar days with location points in that cell.
+    - Scaling Formula: Intensity is computed logarithmically to prevent heavily visited 
+      home/work cells from washing out exploratory travel:
+      `intensity = Math.min(1.0, Math.log(1 + visitCount) / Math.log(1 + 50))`
+    - Visual Heat Tiers (Multi-Cue: Color + Opacity + Border):
+      * 1 Visit: Translucent Cool Cyan (opacity: 0.35, thin border).
+      * 2–9 Visits: Vibrant Green/Yellow Gradient (opacity: 0.55).
+      * 10+ Visits: High-Intensity Warm Gold/Orange (opacity: 0.85, glowing border).
+    - Non-Color Accessibility: Provide optional pattern hatching / numerical tooltips / 
+      high-contrast toggle for colorblind accessibility.
+
+
+6. MAP PERFORMANCE, VIEWPORT ENGINE & OFFLINE BEHAVIOR
+--------------------------------------------------------------------------------
+6.1 Viewport Culling & Worker-Driven Geometry:
+    - Map Engine: MapLibre GL JS with custom GeoJSON polygon layers using GPU-accelerated 
+      data-driven styling expressions (`intensity`, `visitCount`, `tier`).
+    - Viewport Aggregation Worker: Map viewport bounding box (`[minLng, minLat, maxLng, maxLat]`) 
+      is debounced (200ms) and sent to a worker.
+    - Worker loads cached active hex indices, evaluates bounding-box intersection in-memory (<5ms), 
+      converts visible H3 strings to GeoJSON polygon features with closed rings, and streams 
+      the GeoJSON back to the map layer.
+    - Update Budget: Max 5,000 active rendered features in viewport. Avoid full GeoJSON 
+      rebuilds during continuous zoom/pan gestures.
+
+6.2 Offline Behavior & Graceful Tile Degradation:
+    - App shell and stored H3 hex data are 100% available offline via Service Worker.
+    - If uncached vector basemap tiles are unavailable offline:
+      * Render a clean fallback background (dark grid/solid oceans).
+      * Draw stored H3 hexagons normally with zero runtime errors.
+      * Display an unobtrusive "Offline Map Mode" status banner.
+
+6.3 Performance Benchmarks (Measurable Targets):
+    - App Cold Start: <= 2.0s on representative modern mobile/desktop (cached assets).
+    - 10 MB Import: <= 2.0s parsing & ingestion time.
+    - 100 MB Import: <= 15.0s parsing & ingestion time.
+    - Main-Thread Task Duration: < 50ms per task during active imports (no UI freezing).
+    - Viewport Hex Update: <= 100ms after map movement settles.
+    - Map Interaction: Maintain smooth interaction (target >= 55 FPS) during panning/zooming.
+
+
+7. ACCESSIBILITY, ERROR RECOVERY & CODE HYGIENE
+--------------------------------------------------------------------------------
+7.1 TypeScript & Code Standards:
+    - Strict Mode enabled (`strict: true`).
+    - Enable `noUncheckedIndexedAccess: true`.
+    - Disallow `@ts-ignore`, `@ts-nocheck`, and the `any` type across the entire codebase.
+    - Validate external data at runtime using lightweight schemas (e.g., Zod or custom guards).
+    - Apply `exactOptionalPropertyTypes` to internal domain models.
+
+7.2 Comprehensive Automated Test Suite (Vitest + Playwright):
+    - File Ingestion Tests: Malformed JSON, truncated streams, empty files, legacy Takeout, 
+      and modern Timeline schemas.
+    - Spatial Boundary Tests: Equator (0,0), Prime Meridian, +/-180° Longitude boundary crossing, 
+      North/South Poles, and H3 pentagon cells.
+    - Temporal Boundary Tests: Timezone offsets, Daylight Saving Time (DST) shifts, leap years, 
+      and year-end midnight transitions.
+    - Invariant Tests:
+      * Importing the same file twice results in the EXACT same database record state.
+      * Ingestion of overlapping date ranges does NOT increment daily visit counts.
+      * Interrupted/failed imports do NOT advance the sync cursor.
+    - Web Share E2E Tests:
+      * Service worker POST endpoint mocked and tested in Playwright.
+      * Pending import recovery flow tested after simulated browser restart.
+
+7.3 Accessibility (a11y):
+    - Full keyboard navigation for all dialogs, drawers, and stats controls.
+    - Screen reader announcements (`aria-live`) for import progress and sync completion toasts.
+    - Respect user system preference for `prefers-reduced-motion`.
+
+
+8. PHASED IMPLEMENTATION ROADMAP
+--------------------------------------------------------------------------------
+PHASE 0: Architecture, Schemas & Testing Harness
+- Finalize TypeScript domain models, Dexie schema, and runtime validation rules.
+- Set up Vitest test harness and generate test fixtures (Takeout, Timeline, edge cases).
+- Establish the `npm run verify` unified check (`tsc --noEmit && vitest run`).
+
+PHASE 1: Ingestion Engine & Worker Pipeline
+- Implement parser adapters for Takeout and modern Timeline formats.
+- Build streaming Web Worker with calendar-day aggregation and idempotent Dexie upserts.
+- Implement incremental date windowing and cancellation hooks.
+
+PHASE 2: MapLibre Integration & Viewport Rendering
+- Set up MapLibre GL map with a dark vector basemap style.
+- Build viewport culling worker converting visible H3 indices to GeoJSON polygons.
+- Implement logarithmic heatmap shader/styling with multi-cue visual tiers.
+
+PHASE 3: Progressive Web App & Web Share Target
+- Configure `manifest.webmanifest` and Service Worker caching strategies.
+- Implement Web Share Target POST receiver with durable pending-import storage.
+- Build drag-and-drop fallback UI with multi-stage progress bars.
+
+PHASE 4: Metrics, Temporal Filtering & Data Controls
+- Build statistics drawer (Grid Area Explored km², total unique hexes, year-by-year selector).
+- Implement temporal map filter (All-time vs. Specific Year vs. Latest Sync).
+- Implement data backup export and full database purge/reset controls.
+
+PHASE 5: Accessibility, Polish & Edge-Case Validation
+- Conduct accessibility audit (keyboard focus, screen reader announcements, contrast).
+- Execute full test suite against large (100MB+) fixtures and boundary cases.
+- Final performance profiling to verify all latency and FPS targets.
+================================================================================
