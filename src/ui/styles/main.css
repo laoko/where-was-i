@@ -422,3 +422,102 @@ html, body {
   color: var(--text-primary);
   font-weight: 500;
 }
+
+/* ==========================================================================
+   reStrut Live Location Puck & Controls
+   ========================================================================== */
+
+.restrut-live-puck-container {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.restrut-live-puck-halo {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(56, 189, 248, 0.25);
+  animation: restrut-radar-pulse 2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}
+
+.restrut-live-puck-core {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.8), 0 2px 6px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
+.restrut-live-puck-heading {
+  position: absolute;
+  top: -8px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 12px solid rgba(56, 189, 248, 0.85);
+  transform-origin: 6px 24px;
+  z-index: 1;
+  display: none;
+}
+
+@keyframes restrut-radar-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Floating GPS Button */
+.restrut-gps-btn {
+  position: absolute;
+  bottom: 28px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  z-index: 15;
+  transition: all 0.2s ease;
+}
+
+.restrut-gps-btn:hover {
+  background: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.restrut-gps-btn.tracking {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.restrut-gps-btn.following {
+  background: rgba(14, 116, 144, 0.95);
+  color: #ffffff;
+  border-color: #38bdf8;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+}
+

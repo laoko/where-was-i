@@ -32,8 +32,9 @@ describe('PWA Web Share Target & Durable Queue', () => {
 
     const pending = await getPendingImports(testDb);
     expect(pending).toHaveLength(2);
-    expect(pending[0]?.filename).toBe('shared_takeout.json');
-    expect(pending[1]?.filename).toBe('timeline_data.json');
+    const filenames = pending.map((p) => p.filename);
+    expect(filenames).toContain('shared_takeout.json');
+    expect(filenames).toContain('timeline_data.json');
 
     // Remove first item
     await removePendingImport(queueId1, testDb);

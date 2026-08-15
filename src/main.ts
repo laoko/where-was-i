@@ -8,6 +8,8 @@ import { toast } from './ui/toast.ts';
 import { ShareTargetManager } from './pwa/share-target-manager.ts';
 import { getFilteredHexStats, type TemporalFilterConfig } from './metrics/temporal-filter.ts';
 import { pickRandomDiscoveredHex } from './spatial/viewport.ts';
+import { GeolocationTracker } from './spatial/geolocation-tracker.ts';
+import { LocationMarker } from './map/location-marker.ts';
 
 async function bootstrapApp(): Promise<void> {
   // 1. Initialize IndexedDB
@@ -140,7 +142,89 @@ async function bootstrapApp(): Promise<void> {
     };
   }
 
-  // 7. Share Target Manager (Processes background shared files on launch)
+  // 7. Live GPS Location Tracking & Real-Time Discovery
+  const locationMarker = new LocationMarker(mapEngine.mapInstance);
+
+  const tracker = new GeolocationTracker({
+    database: db,
+    accuracyThresholdMeters: 40,
+    enableInterpolation: true,
+    onPositionChange: (pos) => {
+      locationMarker.updatePosition(pos);
+    },
+    onHexDiscovered: async (newCount) => {
+      await reloadMapData(false);
+      toast.show({
+        type: 'success',
+        title: 'Area Discovered! 🗺️',
+        message: `Unlocked +${newCount} new hexagon${newCount > 1 ? 's' : ''}!`,
+      });
+    },
+    onError: (error) => {
+      const msg = error instanceof Error ? error.message : 'GPS location unavailable';
+      toast.show({
+        type: 'error',
+        title: 'Location Error',
+        message: msg,
+      });
+      updateGpsButtonState(false, false);
+    },
+  });
+
+  const btnGps = document.getElementById('btn-gps');
+
+  function updateGpsButtonState(tracking: boolean, following: boolean): void {
+    if (!btnGps) return;
+    btnGps.classList.remove('tracking', 'following');
+    if (following) {
+      btnGps.classList.add('following');
+      btnGps.setAttribute('title', 'Following position (Tap to stop)');
+    } else if (tracking) {
+      btnGps.classList.add('tracking');
+      btnGps.setAttribute('title', 'Tracking active (Tap to center)');
+    } else {
+      btnGps.setAttribute('title', 'Start live GPS tracking');
+    }
+  }
+
+  locationMarker.onFollowModeChange((following) => {
+    if (tracker.isTracking()) {
+      updateGpsButtonState(true, following);
+    }
+  });
+
+  if (btnGps) {
+    btnGps.onclick = () => {
+      if (!tracker.isTracking()) {
+        const started = tracker.start();
+        if (started) {
+          locationMarker.setFollowMode(true);
+          updateGpsButtonState(true, true);
+          toast.show({
+            type: 'info',
+            title: 'Live Tracking Active',
+            message: 'Discovering hexagons as you move!',
+          });
+        }
+      } else if (!locationMarker.isFollowMode()) {
+        // Recenter and re-enable follow mode
+        locationMarker.setFollowMode(true);
+        updateGpsButtonState(true, true);
+      } else {
+        // Stop tracking
+        tracker.stop();
+        locationMarker.remove();
+        updateGpsButtonState(false, false);
+        toast.show({
+          type: 'info',
+          title: 'Live Tracking Paused',
+          message: 'Location tracking turned off.',
+        });
+      }
+    };
+  }
+
+  // 8. Share Target Manager (Processes background shared files on launch)
   const shareTargetManager = new ShareTargetManager(ingestionController, {
     onStartJob: (filename) => {
       progressModal.show(filename);
