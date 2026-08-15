@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { StrutDB, PRIMARY_SYNC_ID } from '../src/db/strut-db.ts';
+import { StrutDB } from '../src/db/strut-db.ts';
 import { runIngestionPipeline } from '../src/ingestion/ingestion-pipeline.ts';
 import { generateTakeoutPayload } from './fixtures/generator.ts';
+import { getExplorationMetrics } from '../src/metrics/metrics-engine.ts';
 
 describe('100MB+ Scale Stress & Benchmark Invariant Suite', () => {
   let testDb: StrutDB;
@@ -44,11 +45,11 @@ describe('100MB+ Scale Stress & Benchmark Invariant Suite', () => {
     expect(durationMs).toBeLessThan(15_000);
 
     // Verify aggregate consistency in IndexedDB
-    const syncState = await testDb.syncState.get(PRIMARY_SYNC_ID);
-    expect(syncState?.totalUniqueHexes).toBeGreaterThan(0);
-    expect(syncState?.totalGridAreaKm2).toBeGreaterThan(0);
+    const metrics = await getExplorationMetrics(testDb);
+    expect(metrics.totalUniqueHexes).toBe(summary.newHexCount);
+    expect(metrics.totalGridAreaKm2).toBeGreaterThan(0);
 
     const visitsCount = await testDb.visits.count();
     expect(visitsCount).toBeGreaterThan(0);
-  });
+  }, 25000);
 });

@@ -361,6 +361,49 @@ export class StrutDB extends Dexie {
     }
     return false;
   }
+
+  /**
+   * Instantly seeds pre-processed demo database snapshot in a single atomic bulk transaction.
+   */
+  async seedDemoSnapshot(seedData: DemoSeedData): Promise<void> {
+    await this.transaction(
+      'rw',
+      [this.imports, this.visits, this.hexStats, this.hexYearStats, this.syncState, this.appSettings],
+      async () => {
+        await this.imports.clear();
+        await this.visits.clear();
+        await this.hexStats.clear();
+        await this.hexYearStats.clear();
+
+        if (seedData.imports && seedData.imports.length > 0) {
+          await this.imports.bulkPut(seedData.imports);
+        }
+        if (seedData.hexStats && seedData.hexStats.length > 0) {
+          await this.hexStats.bulkPut(seedData.hexStats);
+        }
+        if (seedData.hexYearStats && seedData.hexYearStats.length > 0) {
+          await this.hexYearStats.bulkPut(seedData.hexYearStats);
+        }
+        if (seedData.dailyVisits && seedData.dailyVisits.length > 0) {
+          await this.visits.bulkPut(seedData.dailyVisits);
+        }
+        if (seedData.syncState) {
+          await this.syncState.put(seedData.syncState);
+        }
+
+        await this.appSettings.put({ key: 'isDemoMode', value: true });
+        await this.appSettings.delete('hasExplicitlyPurged');
+      },
+    );
+  }
+}
+
+export interface DemoSeedData {
+  hexStats: HexStats[];
+  hexYearStats: HexYearStats[];
+  dailyVisits: DailyVisit[];
+  syncState: SyncState;
+  imports: ImportRecord[];
 }
 
 export const db = new StrutDB();

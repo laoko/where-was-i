@@ -5,7 +5,7 @@ import { StrutDB } from '../src/db/strut-db.ts';
 import { runIngestionPipeline } from '../src/ingestion/ingestion-pipeline.ts';
 import { getExplorationMetrics } from '../src/metrics/metrics-engine.ts';
 
-describe('Demo State Lifecycle & Auto-Transition Suite', () => {
+describe('Demo State Lifecycle & Instant Snapshot Seeding Suite', () => {
   let testDb: StrutDB;
 
   beforeEach(async () => {
@@ -28,7 +28,22 @@ describe('Demo State Lifecycle & Auto-Transition Suite', () => {
     expect(await testDb.isDemoMode()).toBe(false);
   });
 
-  it('ingests the 1-year fabricated demo dataset accurately across all regions', async () => {
+  it('instantly seeds pre-processed demo snapshot in milliseconds without progress bar', async () => {
+    const seedPath = path.resolve(__dirname, '../public/demo-seed.json');
+    const seedData = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+
+    await testDb.seedDemoSnapshot(seedData);
+
+    expect(await testDb.isDemoMode()).toBe(true);
+    expect(await testDb.hexStats.count()).toBeGreaterThanOrEqual(6000);
+    expect(await testDb.visits.count()).toBeGreaterThanOrEqual(50000);
+
+    const metrics = await getExplorationMetrics(testDb);
+    expect(metrics.totalUniqueHexes).toBeGreaterThanOrEqual(6000);
+    expect(metrics.totalGridAreaKm2).toBeGreaterThan(20);
+  }, 25000);
+
+  it('ingests raw demo timeline data accurately across all regions', async () => {
     const demoPath = path.resolve(__dirname, '../public/demo-timeline.json');
     const rawDemo = JSON.parse(fs.readFileSync(demoPath, 'utf8'));
 

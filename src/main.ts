@@ -56,29 +56,16 @@ async function bootstrapApp(): Promise<void> {
     },
   });
 
-  // Demo State Loader
+  // Instant Demo State Loader (Pre-calculated snapshot with 0ms progress bar)
   async function loadDemoState(notify = false): Promise<void> {
     try {
-      progressModal.show('demo-timeline.json');
-      await db.purgeAllData();
-
-      const response = await fetch('/demo-timeline.json');
+      const response = await fetch('/demo-seed.json');
       if (!response.ok) {
-        throw new Error(`Failed to fetch demo dataset: ${response.statusText}`);
+        throw new Error(`Failed to fetch demo snapshot: ${response.statusText}`);
       }
-      const rawJson = await response.json();
+      const seedData = await response.json();
+      await db.seedDemoSnapshot(seedData);
 
-      await ingestionController.startIngestion(
-        rawJson,
-        {
-          filename: 'Demo Timeline (Oslo, Seville, London)',
-          onProgress: (p) => progressModal.update(p),
-        },
-        true,
-      );
-
-      await db.setDemoMode(true);
-      progressModal.dismiss();
       updateDemoBadge(true);
 
       if (notify) {
@@ -96,7 +83,6 @@ async function bootstrapApp(): Promise<void> {
         essential: true,
       });
     } catch (err: unknown) {
-      progressModal.dismiss();
       const msg = err instanceof Error ? err.message : 'Could not load demo state';
       toast.show({
         type: 'error',
